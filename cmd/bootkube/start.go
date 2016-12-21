@@ -24,15 +24,17 @@ var (
 	}
 
 	startOpts struct {
-		assetDir       string
-		etcdServer     string
-		selfHostedEtcd bool
+		assetDir        string
+		etcdServer      string
+		etcdAuthEnabled bool
+		selfHostedEtcd  bool
 	}
 )
 
 func init() {
 	cmdRoot.AddCommand(cmdStart)
 	cmdStart.Flags().StringVar(&startOpts.etcdServer, "etcd-server", "http://127.0.0.1:2379", "Single etcd node to use during bootkube bootstrap process.")
+	cmdStart.Flags().StringVar(&startOpts.etcdAuthEnabled, "etcd-auth-enabled", false, "Etcd requires authentication through client certificates.")
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory. Expected layout genereted by the `bootkube render` command.")
 	cmdStart.Flags().BoolVar(&startOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "Self hosted etcd mode. Includes starting the initial etcd member by bootkube.")
 }
@@ -51,9 +53,10 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 	}
 
 	bk, err := bootkube.NewBootkube(bootkube.Config{
-		AssetDir:       startOpts.assetDir,
-		EtcdServer:     etcdServer,
-		SelfHostedEtcd: startOpts.selfHostedEtcd,
+		AssetDir:        startOpts.assetDir,
+		EtcdServer:      etcdServer,
+		EtcdAuthEnabled: startOpts.etcdAuthEnabled,
+		SelfHostedEtcd:  startOpts.selfHostedEtcd,
 	})
 
 	if err != nil {

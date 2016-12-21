@@ -30,9 +30,10 @@ var requiredPods = []string{
 }
 
 type Config struct {
-	AssetDir       string
-	EtcdServer     *url.URL
-	SelfHostedEtcd bool
+	AssetDir        string
+	EtcdServer      *url.URL
+	EtcdAuthEnabled bool
+	SelfHostedEtcd  bool
 }
 
 type bootkube struct {
@@ -94,6 +95,12 @@ func makeAPIServerFlags(config Config) []string {
 	if config.SelfHostedEtcd {
 		res = append(res, "--storage-backend=etcd3")
 	}
+	if config.EtcdAuthEnabled {
+		res = append(res, "--etcd-ca-cert-file="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCACert))
+		res = append(res, "--etcd-private-key-file="+filepath.Join(config.AssetDir, asset.AssetPathEtcdKey))
+		res = append(res, "--etcd-cert-file="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCert))
+	}
+
 	return res
 }
 
