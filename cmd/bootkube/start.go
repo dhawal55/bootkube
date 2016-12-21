@@ -34,7 +34,7 @@ var (
 func init() {
 	cmdRoot.AddCommand(cmdStart)
 	cmdStart.Flags().StringVar(&startOpts.etcdServer, "etcd-server", "http://127.0.0.1:2379", "Single etcd node to use during bootkube bootstrap process.")
-	cmdStart.Flags().StringVar(&startOpts.etcdAuthEnabled, "etcd-auth-enabled", false, "Etcd requires authentication through client certificates.")
+	cmdStart.Flags().BoolVar(&startOpts.etcdAuthEnabled, "etcd-auth-enabled", false, "Etcd requires authentication through client certificates.")
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory. Expected layout genereted by the `bootkube render` command.")
 	cmdStart.Flags().BoolVar(&startOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "Self hosted etcd mode. Includes starting the initial etcd member by bootkube.")
 }
