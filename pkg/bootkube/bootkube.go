@@ -96,9 +96,9 @@ func makeAPIServerFlags(config Config) []string {
 		res = append(res, "--storage-backend=etcd3")
 	}
 	if config.EtcdAuthEnabled {
-		res = append(res, "--etcd-ca-cert-file="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCACert))
-		res = append(res, "--etcd-private-key-file="+filepath.Join(config.AssetDir, asset.AssetPathEtcdKey))
-		res = append(res, "--etcd-cert-file="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCert))
+		res = append(res, "--etcd-cafile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCACert))
+		res = append(res, "--etcd-keyfile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdKey))
+		res = append(res, "--etcd-certfile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCert))
 	}
 
 	return res
