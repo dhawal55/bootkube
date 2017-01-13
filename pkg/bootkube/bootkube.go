@@ -32,6 +32,7 @@ var requiredPods = []string{
 type Config struct {
 	AssetDir              string
 	EtcdServer            *url.URL
+	EtcdAuthEnabled       bool
 	SelfHostedEtcd        bool
 	ServiceClusterIPRange string
 }
@@ -95,6 +96,12 @@ func makeAPIServerFlags(config Config) []string {
 	if config.SelfHostedEtcd {
 		res = append(res, "--storage-backend=etcd3")
 	}
+	if config.EtcdAuthEnabled {
+		res = append(res, "--etcd-cafile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCACert))
+		res = append(res, "--etcd-keyfile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdKey))
+		res = append(res, "--etcd-certfile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCert))
+	}
+
 	return res
 }
 
