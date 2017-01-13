@@ -19,6 +19,7 @@ contexts:
     cluster: local
     user: kubelet
 `)
+
 	KubeletTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -36,26 +37,25 @@ spec:
       - name: kubelet
         image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
         command:
-        - /nsenter
-        - --target=1
-        - --mount
-        - --wd=.
-        - --
         - ./hyperkube
         - kubelet
+        - --network-plugin=cni
+        - --cni-conf-dir=/etc/kubernetes/cni/net.d
+        - --cni-bin-dir=/opt/cni/bin
         - --pod-manifest-path=/etc/kubernetes/manifests
         - --allow-privileged
-        - --hostname-override=$(MY_POD_IP)
+        - --hostname-override=$(NODE_NAME)
         - --cluster-dns=10.3.0.10
         - --cluster-domain=cluster.local
         - --kubeconfig=/etc/kubernetes/kubeconfig
         - --require-kubeconfig
         - --lock-file=/var/run/lock/kubelet.lock
+        - --containerized
         env:
-          - name: MY_POD_IP
+          - name: NODE_NAME
             valueFrom:
               fieldRef:
-                fieldPath: status.podIP
+                fieldPath: spec.nodeName
         securityContext:
           privileged: true
         volumeMounts:
@@ -78,6 +78,8 @@ spec:
           mountPath: /var/lib/kubelet
         - name: var-lib-rkt
           mountPath: /var/lib/rkt
+        - name: rootfs
+          mountPath: /rootfs
       hostNetwork: true
       hostPID: true
       volumes:
@@ -105,7 +107,11 @@ spec:
       - name: var-lib-rkt
         hostPath:
           path: /var/lib/rkt
+      - name: rootfs
+        hostPath:
+          path: /
 `)
+
 	APIServerTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
 metadata:
@@ -118,6 +124,8 @@ spec:
     metadata:
       labels:
         k8s-app: kube-apiserver
+      annotations:
+        checkpointer.alpha.coreos.com/checkpoint: "true"
     spec:
       nodeSelector:
         master: "true"
@@ -126,12 +134,16 @@ spec:
       - name: kube-apiserver
         image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
         command:
+        - /usr/bin/flock
+        - --exclusive
+        - --timeout=30
+        - /var/lock/api-server.lock
         - /hyperkube
         - apiserver
         - --bind-address=0.0.0.0
         - --secure-port=443
         - --insecure-port=8080
-        - --advertise-address=$(MY_POD_IP)
+        - --advertise-address=$(POD_IP)
         - --etcd-servers={{ range $i, $e := .EtcdServers }}{{ if $i }},{{end}}{{ $e }}{{end}}
         - --storage-backend={{.StorageBackend}}
         - --allow-privileged=true
@@ -145,10 +157,10 @@ spec:
         - --cloud-provider={{ .CloudProvider  }}
         - --anonymous-auth=false
         env:
-          - name: MY_POD_IP
-            valueFrom:
-              fieldRef:
-                fieldPath: status.podIP
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         volumeMounts:
         - mountPath: /etc/ssl/certs
           name: ssl-certs-host
@@ -156,6 +168,9 @@ spec:
         - mountPath: /etc/kubernetes/secrets
           name: secrets
           readOnly: true
+        - mountPath: /var/lock
+          name: var-lock
+          readOnly: false
       volumes:
       - name: ssl-certs-host
         hostPath:
@@ -163,6 +178,9 @@ spec:
       - name: secrets
         secret:
           secretName: kube-apiserver
+      - name: var-lock
+        hostPath:
+          path: /var/lock
 `)
 	CheckpointerTemplate = []byte(`apiVersion: "extensions/v1beta1"
 kind: DaemonSet
@@ -182,7 +200,7 @@ spec:
       hostNetwork: true
       containers:
       - name: checkpoint-installer
-        image: quay.io/coreos/pod-checkpointer:b4f0353cc12d95737628b8815625cc8e5cedb6fc
+        image: quay.io/coreos/pod-checkpointer:443f843edfee6be39a84d13c8cd060275f6f972e
         command:
         - /checkpoint-installer.sh
         volumeMounts:
@@ -213,6 +231,9 @@ spec:
         command:
         - ./hyperkube
         - controller-manager
+        - --allocate-node-cidrs=true
+        - --configure-cloud-routes=false
+        - --cluster-cidr=10.2.0.0/16
         - --root-ca-file=/etc/kubernetes/secrets/ca.crt
         - --service-account-private-key-file=/etc/kubernetes/secrets/service-account.key
         - --leader-elect=true
@@ -278,13 +299,13 @@ spec:
         - proxy
         - --kubeconfig=/etc/kubernetes/kubeconfig
         - --proxy-mode=iptables
-        - --hostname-override=$(POD_IP)
+        - --hostname-override=$(NODE_NAME)
         - --cluster-cidr=10.2.0.0/16
         env:
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
         securityContext:
           privileged: true
         volumeMounts:
@@ -475,6 +496,7 @@ spec:
     port: 53
     protocol: TCP
 `)
+
 	EtcdOperatorTemplate = []byte(`apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -498,6 +520,7 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
 `)
+
 	EtcdSvcTemplate = []byte(`apiVersion: v1
 kind: Service
 metadata:
@@ -512,5 +535,93 @@ spec:
   - name: client
     port: 2379
     protocol: TCP
+`)
+
+	KubeFlannelCfgTemplate = []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-flannel-cfg
+  namespace: kube-system
+  labels:
+    tier: node
+    app: flannel
+data:
+  cni-conf.json: |
+    {
+      "name": "cbr0",
+      "type": "flannel",
+      "delegate": {
+        "isDefaultGateway": true
+      }
+    }
+  net-conf.json: |
+    {
+      "Network": "10.2.0.0/16",
+      "Backend": {
+        "Type": "vxlan"
+      }
+    }
+`)
+
+	KubeFlannelTemplate = []byte(`apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: kube-flannel
+  namespace: kube-system
+  labels:
+    tier: node
+    app: flannel
+spec:
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: flannel
+    spec:
+      hostNetwork: true
+      containers:
+      - name: kube-flannel
+        image: quay.io/coreos/flannel:v0.7.0-amd64
+        command: [ "/opt/bin/flanneld", "--ip-masq", "--kube-subnet-mgr", "--iface=$(POD_IP)"]
+        securityContext:
+          privileged: true
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        volumeMounts:
+        - name: run
+          mountPath: /run
+        - name: cni
+          mountPath: /etc/cni/net.d
+        - name: flannel-cfg
+          mountPath: /etc/kube-flannel/
+      - name: install-cni
+        image: busybox
+        command: [ "/bin/sh", "-c", "set -e -x; TMP=/etc/cni/net.d/.tmp-flannel-cfg; cp /etc/kube-flannel/cni-conf.json ${TMP}; mv ${TMP} /etc/cni/net.d/10-flannel.conf; while :; do sleep 3600; done" ]
+        volumeMounts:
+        - name: cni
+          mountPath: /etc/cni/net.d
+        - name: flannel-cfg
+          mountPath: /etc/kube-flannel/
+      volumes:
+        - name: run
+          hostPath:
+            path: /run
+        - name: cni
+          hostPath:
+            path: /etc/kubernetes/cni/net.d
+        - name: flannel-cfg
+          configMap:
+            name: kube-flannel-cfg
 `)
 )
