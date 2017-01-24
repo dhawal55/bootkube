@@ -2,6 +2,7 @@ package bootkube
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"path/filepath"
 	"time"
@@ -34,7 +35,8 @@ type Config struct {
 	EtcdServer            *url.URL
 	EtcdAuthEnabled       bool
 	SelfHostedEtcd        bool
-	ServiceClusterIPRange string
+	ServiceClusterIPRange net.IPNet
+	ClusterCIDR           net.IPNet
 }
 
 type bootkube struct {
@@ -59,7 +61,7 @@ func NewBootkube(config Config) (*bootkube, error) {
 		"--service-account-private-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPrivKey),
 		"--root-ca-file=" + filepath.Join(config.AssetDir, asset.AssetPathCACert),
 		"--allocate-node-cidrs=true",
-		"--cluster-cidr=10.2.0.0/16",
+		"--cluster-cidr=" + config.ClusterCIDR.String(),
 		"--configure-cloud-routes=false",
 		"--leader-elect=true",
 	})
@@ -94,7 +96,7 @@ func makeAPIServerFlags(config Config) []string {
 		"--service-account-key-file=" + filepath.Join(config.AssetDir, asset.AssetPathServiceAccountPubKey),
 		"--admission-control=NamespaceLifecycle,ServiceAccount",
 		"--runtime-config=api/all=true",
-		"--service-cluster-ip-range=" + config.ServiceClusterIPRange,
+		"--service-cluster-ip-range=" + config.ServiceClusterIPRange.String(),
 	}
 	if config.SelfHostedEtcd {
 		res = append(res, "--storage-backend=etcd3")
@@ -104,7 +106,7 @@ func makeAPIServerFlags(config Config) []string {
 		res = append(res, "--etcd-keyfile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdKey))
 		res = append(res, "--etcd-certfile="+filepath.Join(config.AssetDir, asset.AssetPathEtcdCert))
 	}
-
+	fmt.Println(res)
 	return res
 }
 
