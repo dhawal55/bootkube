@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
       - name: kubelet
-        image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.5.2_coreos.1
         command:
         - ./hyperkube
         - kubelet
@@ -132,7 +132,7 @@ spec:
       hostNetwork: true
       containers:
       - name: kube-apiserver
-        image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.5.2_coreos.1
         command:
         - /usr/bin/flock
         - --exclusive
@@ -200,7 +200,7 @@ spec:
       hostNetwork: true
       containers:
       - name: checkpoint-installer
-        image: quay.io/coreos/pod-checkpointer:443f843edfee6be39a84d13c8cd060275f6f972e
+        image: quay.io/coreos/pod-checkpointer:5b585a2d731173713fa6871c436f6c53fa17f754
         command:
         - /checkpoint-installer.sh
         volumeMounts:
@@ -227,7 +227,7 @@ spec:
     spec:
       containers:
       - name: kube-controller-manager
-        image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.5.2_coreos.1
         command:
         - ./hyperkube
         - controller-manager
@@ -271,7 +271,7 @@ spec:
     spec:
       containers:
       - name: kube-scheduler
-        image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.5.2_coreos.1
         command:
         - ./hyperkube
         - scheduler
@@ -293,7 +293,7 @@ spec:
       hostNetwork: true
       containers:
       - name: kube-proxy
-        image: quay.io/coreos/hyperkube:v1.5.1_coreos.0
+        image: quay.io/coreos/hyperkube:v1.5.2_coreos.1
         command:
         - /hyperkube
         - proxy
@@ -513,7 +513,7 @@ spec:
     spec:
       containers:
       - name: etcd-operator
-        image: quay.io/coreos/etcd-operator
+        image: quay.io/coreos/etcd-operator:c391d8b7638deb81aa877773a0acce389f602415
         env:
         - name: MY_POD_NAMESPACE
           valueFrom:
@@ -529,7 +529,7 @@ metadata:
 spec:
   selector:
     app: etcd
-    etcd_cluster: etcd-cluster
+    etcd_cluster: kube-etcd
   clusterIP: 10.3.0.15
   ports:
   - name: client
