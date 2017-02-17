@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/url"
 
 	"github.com/spf13/cobra"
@@ -28,7 +29,8 @@ var (
 		etcdServer            string
 		etcdAuthEnabled       bool
 		selfHostedEtcd        bool
-		serviceClusterIPRange string
+		serviceClusterIPRange net.IPNet
+		clusterCIDR           net.IPNet
 	}
 )
 
@@ -38,7 +40,8 @@ func init() {
 	cmdStart.Flags().BoolVar(&startOpts.etcdAuthEnabled, "etcd-auth-enabled", false, "Etcd requires authentication through client certificates.")
 	cmdStart.Flags().StringVar(&startOpts.assetDir, "asset-dir", "", "Path to the cluster asset directory. Expected layout genereted by the `bootkube render` command.")
 	cmdStart.Flags().BoolVar(&startOpts.selfHostedEtcd, "experimental-self-hosted-etcd", false, "Self hosted etcd mode. Includes starting the initial etcd member by bootkube.")
-	cmdStart.Flags().StringVar(&startOpts.serviceClusterIPRange, "service-cluster-ip-range", "10.3.0.0/24", "A CIDR notation IP range from which to assign service cluster IPs.")
+	cmdStart.Flags().IPNetVar(&startOpts.serviceClusterIPRange, "service-cluster-ip-range", net.IPNet{IP: net.IP("10.3.0.0"), Mask: net.IPMask("24")}, "A CIDR notation IP range from which to assign service cluster IPs.")
+	cmdStart.Flags().IPNetVar(&startOpts.clusterCIDR, "cluster-cidr", net.IPNet{IP: net.IP("10.2.0.0"), Mask: net.IPMask("16")}, "CIDR Range for Pods in cluster.")
 }
 
 func runCmdStart(cmd *cobra.Command, args []string) error {
@@ -60,6 +63,7 @@ func runCmdStart(cmd *cobra.Command, args []string) error {
 		EtcdAuthEnabled:       startOpts.etcdAuthEnabled,
 		SelfHostedEtcd:        startOpts.selfHostedEtcd,
 		ServiceClusterIPRange: startOpts.serviceClusterIPRange,
+		ClusterCIDR:           startOpts.clusterCIDR,
 	})
 
 	if err != nil {

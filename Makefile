@@ -25,11 +25,23 @@ install: _output/bin/$(LOCAL_OS)/bootkube
 
 _output/bin/%: $(GOFILES)
 	mkdir -p $(dir $@)
-	GOOS=$(word 1, $(subst /, ,$*)) go build -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
+	GOOS=$(word 1, $(subst /, ,$*)) go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $@ github.com/kubernetes-incubator/bootkube/cmd/$(notdir $@)
 
 _output/release/bootkube.tar.gz: _output/bin/linux/bootkube _output/bin/darwin/bootkube _output/bin/linux/checkpoint
 	mkdir -p $(dir $@)
 	tar czf $@ -C _output bin/linux/bootkube bin/darwin/bootkube bin/linux/checkpoint
+
+run-%: GOFLAGS = -i
+run-%: clean-vm-% _output/bin/linux/bootkube _output/bin/$(LOCAL_OS)/bootkube
+	@cd hack/$*-node && ./bootkube-up
+	@echo "Bootkube ready"
+
+clean-vm-single:
+clean-vm-%:
+	@echo "Cleaning VM..."
+	@(cd hack/$*-node && \
+	    vagrant destroy -f && \
+	    rm -rf cluster )
 
 #TODO(aaron): Prompt because this is destructive
 conformance-%: clean all
@@ -42,7 +54,8 @@ conformance-%: clean all
 #TODO(aaron): the k8s.io/client-go upstream package is a symlink with relative path. Making note because we change symlink path.
 # This will naively try and create a vendor dir from a k8s release
 # USE: make vendor VENDOR_VERSION=vX.Y.Z
-VENDOR_VERSION = v1.5.1+coreos.0
+VENDOR_VERSION = v1.5.2+coreos.1
+ETCD_OPERATOR_VERSION = 7315cda48a511c8bcab1e575ee0626eae7d07d2d
 vendor:
 	@echo "Creating k8s vendor for: $(VENDOR_VERSION)"
 	@rm -rf vendor
@@ -54,6 +67,12 @@ vendor:
 	@mv $@/k8s.io/kubernetes/vendor/* $(abspath $@)
 	@cd $@/k8s.io/ && ln -sf kubernetes/staging/src/k8s.io/client-go client-go
 	@rm -rf $@/k8s.io/kubernetes/vendor $@/k8s.io/kubernetes/.git
+	@echo "vendoring etcd-operator spec"
+	@git clone https://github.com/coreos/etcd-operator /tmp/etcd-operator > /dev/null 2>&1
+	@cd /tmp/etcd-operator && git checkout $(ETCD_OPERATOR_VERSION) > /dev/null 2>&1
+	@mkdir -p $@/github.com/coreos/etcd-operator/pkg/
+	@cp -r /tmp/etcd-operator/pkg/spec $@/github.com/coreos/etcd-operator/pkg/
+	@rm -rf /tmp/etcd-operator
 
 clean:
 	rm -rf _output
