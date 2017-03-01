@@ -184,7 +184,7 @@ func process(localRunningPods, localParentPods, apiParentPods, activeCheckpoints
 }
 
 // createCheckpointsForValidParents will iterate through pods which are candidates for checkpointing, then:
-// - checkpoint any remote assets they need (e.g. secrets)
+// - checkpoint any remote assets they need (e.g. secrets, configMaps)
 // - sanitize their podSpec, removing unnecessary information
 // - store the manifest on disk in an "inactive" checkpoint location
 //TODO(aaron): Add support for checkpointing configMaps
@@ -217,7 +217,7 @@ func createCheckpointsForValidParents(client clientset.Interface, pods map[strin
 		cp, err = checkpointConfigMapVolumes(client, cp)
 		if err != nil {
 			//TODO(aaron): This can end up spamming logs at times when api-server is unavailable. To reduce spam
-			//             we could only log error if api-server can't be contacted and existing secret doesn't exist.
+			//             we could only log error if api-server can't be contacted and existing configmap doesn't exist.
 			glog.Errorf("Failed to checkpoint configMaps for pod %s: %v", id, err)
 			continue
 		}
